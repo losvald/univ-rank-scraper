@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Usage:
+  ./icpc -n --years 2010 2016 "select * from rankings"  # stateless queries
+
+  ./icpc --years 2010  # scrape for year 2010 (keeps previously scraped data)
+  ./icpc -c --years 2016  # clear scraped data from 2010, then scrape for 2016
+  ./icpc "select rank,year from rankings where univ like 'stanford%'"
+"""
+
+import argparse
+import sqlite3
+import sys
+import urllib.request as UR
+import xml.etree.ElementTree as ET
+
+from common import connect_db
+
+DEFAULT_YEARS = [2016]  # used as default for the --year flag
+
+
+def query(s, db):
+    for row in db.execute(s):
+        print(row)
+
+
+def scrape_ranking(tree, year, db):
+    pos = 0
+    for tbl_name in "medalTable", "rankTable":
+        v_print(1, "parsing table", tbl_name)
+        for tbl in tree.findall(
+            ".//{http://www.w3.org/1999/xhtml}table[@id='%s']/*" % tbl_name
+        ):
+            row = [tr.text for tr in tbl.getchildren() if tr.text is not None]
+            if row:
+                pos += 1
+                v_print(2, "parsed row#%d: %s" % (pos, tuple(row)))
+                while len(row) > 4:
+                    row.pop()   # pop "Last solved"
+                if len(row) < 4:
+                    row.append(None)  # add unknown penalty
+                db.execute("""INSERT INTO rankings VALUES
+                ('icpc', ?, ?, ?, ?, ?)""", [year] + row)
+
+
+def fetch(year):
+    url = "https://icpc.baylor.edu/community/results-%d" % year
+    v_print(1, "scraping from:", url)
+    resp = UR.urlopen(UR.Request(url))
+    if resp.code != 200:
+        raise Exception("Failed to fetch results for year: %d" % year)
+    return ET.fromstring(resp.read().decode('utf-8'))
+
+
+def main(args=sys.argv):
+    parser = argparse.ArgumentParser(
+        prog=args[0],
+        description="""""")
+    parser.add_argument(
+        "-v", "--verbose", dest='v', action='count', default=0,
+        help="increase output verbosity (can be repeated)")
+    parser.add_argument(
+        "-n", "--dry-run", action='store_true',
+        help="do not persist anything to the database file")
+    parser.add_argument(
+        "-c", "--clear", action='store_true',
+        help="clears the previously scraped ICPC data")
+    parser.add_argument(
+        "-y", "--year", type=int, nargs='+', default=DEFAULT_YEARS,
+        help="scrape for the specified years only")
+    parser.add_argument("queries", metavar='QUERY', nargs='*')
+    args = parser.parse_args(args[1:])
+
+    global FLAGS
+    FLAGS = args
+    v_print(1, "FLAGS:", args)
+
+    with connect_db(FLAGS.dry_run) as db:
+        if FLAGS.clear and not FLAGS.dry_run:
+            db.execute("DELETE FROM rankings")
+
+        for year in FLAGS.year:
+            try:
+                scrape_ranking(fetch(year), year, db)
+            except sqlite3.IntegrityError as e:
+                v_print(0, "warning: skipping already scraped year %d" % year)
+        db.commit()
+
+        for s in FLAGS.queries:
+            query(s, db)
+            print()
+
+    return 0
+
+
+def v_print(min_verbosity, *args, **kwargs):
+    if FLAGS.v >= min_verbosity:
+        kwargs.setdefault('file', sys.stderr)
+        print(*args, **kwargs)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
