@@ -3,7 +3,7 @@
 
 """
 Usage:
-  ./icpc -n --years 2010 2016 "select * from rankings"  # stateless queries
+  ./icpc -n --years 2010 2016 -- "select * from icpc"  # stateless query...
 
   ./icpc --years 2010  # scrape for year 2010 (keeps previously scraped data)
   ./icpc -c --years 2016  # clear scraped data from 2010, then scrape for 2016
@@ -107,6 +107,11 @@ def main(args=sys.argv):
         db.execute("""CREATE TABLE IF NOT EXISTS icpc_geo (
         region TEXT NOT NULL,
         univ TEXT NOT NULL PRIMARY KEY)""")
+        db.execute("""CREATE VIEW IF NOT EXISTS icpc AS
+        SELECT year, rank, r.univ, region, score, penalty
+        FROM rankings r LEFT JOIN icpc_geo g ON r.univ=g.univ
+        WHERE contest='icpc'
+        """)
 
         if FLAGS.clear and not FLAGS.dry_run:
             db.execute("DELETE FROM rankings")
