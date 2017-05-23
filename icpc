@@ -86,6 +86,10 @@ def main(args=sys.argv):
     parser.add_argument(
         "-r", "--regions", action='store_true',
         help="scrape regions for some universities")
+    parser.add_argument(
+        "-f", "--regions-file", type=argparse.FileType('r'),
+        nargs='?', const='-',
+        help="read additional region to university mappings in the TSV format")
     parser.add_argument("queries", metavar='QUERY', nargs='*')
     args = parser.parse_args(args[1:])
 
@@ -112,6 +116,21 @@ def main(args=sys.argv):
                 except sqlite3.IntegrityError as e:
                     v_print(0, "warning: skipping already scraped year %d"
                             % year)
+
+        if args.regions_file:
+            for num, line in enumerate(
+                    map(lambda s: s.strip(), args.regions_file), 1
+            ):
+                try:
+                    r, u = line.split("\t")
+                    v_print(2, "parsed mapping from %s: %s"
+                            % (args.regions_file.name, (r, u)))
+                    db.execute("INSERT OR REPLACE INTO icpc_geo VALUES (?, ?)",
+                               (r, u))
+                except Exception as e:
+                    v_print(0, "error: failed to parse %s @ line#%d: %s"
+                            % (args.regions_file.name, num, e))
+
         db.commit()
 
         for s in FLAGS.queries:
