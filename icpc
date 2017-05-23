@@ -45,6 +45,19 @@ def scrape_ranking(tree, year, db):
                 ('icpc', ?, ?, ?, ?, ?)""", [year] + row)
 
 
+def scrape_regions(tree, year, db):
+    count = 0
+    for entries in tree.findall(
+            ".//{http://www.w3.org/1999/xhtml}table[@id='regionTable']/*"
+    )[1:]:
+        row = [tr.text for tr in entries.getchildren()]
+        v_print(2, "parsed region from %d: %s" % (year, row))
+        count += db.execute(
+            """INSERT OR IGNORE INTO icpc_geo VALUES (?, ?)""", row
+        ).rowcount
+    v_print(1, "scraped %d new entries from %d" % (count, year))
+
+
 def fetch(year):
     url = "https://icpc.baylor.edu/community/results-%d" % year
     v_print(1, "scraping from:", url)
@@ -70,6 +83,9 @@ def main(args=sys.argv):
     parser.add_argument(
         "-y", "--year", type=int, nargs='+', default=DEFAULT_YEARS,
         help="scrape for the specified years only")
+    parser.add_argument(
+        "-r", "--regions", action='store_true',
+        help="scrape regions for some universities")
     parser.add_argument("queries", metavar='QUERY', nargs='*')
     args = parser.parse_args(args[1:])
 
@@ -77,15 +93,25 @@ def main(args=sys.argv):
     FLAGS = args
     v_print(1, "FLAGS:", args)
 
+    scrape_fns = [scrape_ranking] + ([scrape_regions] if FLAGS.regions else [])
+
     with connect_db(FLAGS.dry_run) as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS icpc_geo (
+        region TEXT NOT NULL,
+        univ TEXT NOT NULL PRIMARY KEY)""")
+
         if FLAGS.clear and not FLAGS.dry_run:
             db.execute("DELETE FROM rankings")
+            db.execute("DELETE FROM icpc_geo")
 
         for year in FLAGS.year:
-            try:
-                scrape_ranking(fetch(year), year, db)
-            except sqlite3.IntegrityError as e:
-                v_print(0, "warning: skipping already scraped year %d" % year)
+            tree = fetch(year)
+            for scrape in scrape_fns:
+                try:
+                    scrape(tree, year, db)
+                except sqlite3.IntegrityError as e:
+                    v_print(0, "warning: skipping already scraped year %d"
+                            % year)
         db.commit()
 
         for s in FLAGS.queries:
