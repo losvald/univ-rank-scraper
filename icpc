@@ -7,7 +7,11 @@ Usage:
 
   ./icpc --years 2010  # scrape for year 2010 (keeps previously scraped data)
   ./icpc -c --years 2016  # clear scraped data from 2010, then scrape for 2016
-  ./icpc "select rank,year from rankings where univ like 'stanford%'"
+  ./icpc "select rank,year,contest from rankings where univ like 'stanford%'"
+
+  # Override a single region mapping from stdin (no argument or '-' after -f)
+  echo -e "USA (override)\tHarvard University" \
+  | ./icpc -f -r "select * from icpc WHERE year=2016 ORDER BY rank LIMIT 3"
 """
 
 import argparse
