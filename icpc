@@ -112,7 +112,7 @@ def main(args=sys.argv):
         """)
 
         if FLAGS.clear and not FLAGS.dry_run:
-            db.execute("DELETE FROM rankings")
+            db.execute("DELETE FROM rankings WHERE contest='icpc'")
             db.execute("DELETE FROM icpc_geo")
 
         for year in FLAGS.year:
