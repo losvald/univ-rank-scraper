@@ -22,8 +22,6 @@ import xml.etree.ElementTree as ET
 
 from common import connect_db
 
-DEFAULT_YEARS = [2016]  # used as default for the --year flag
-
 
 def query(s, db):
     for row in db.execute(s):
@@ -85,8 +83,8 @@ def main(args=sys.argv):
         "-c", "--clear", action='store_true',
         help="clears the previously scraped ICPC data")
     parser.add_argument(
-        "-y", "--year", type=int, nargs='+', default=DEFAULT_YEARS,
-        help="scrape for the specified years only")
+        "-y", "--year", type=int, nargs='+', default=[],
+        help="scrape for the specified years")
     parser.add_argument(
         "-r", "--regions", action='store_true',
         help="scrape regions for some universities")
