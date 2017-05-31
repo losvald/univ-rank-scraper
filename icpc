@@ -62,11 +62,32 @@ def scrape_regions(tree, year, db):
 
 def fetch(year):
     url = "https://icpc.baylor.edu/community/results-%d" % year
-    v_print(1, "scraping from:", url)
-    resp = UR.urlopen(UR.Request(url))
-    if resp.code != 200:
-        raise Exception("Failed to fetch results for year: %d" % year)
-    return ET.fromstring(resp.read().decode('utf-8'))
+    contents = ""
+
+    if FLAGS.cache:
+        path = url.partition("//")[-1].replace("/", "_") + ".html"
+
+        try:
+            v_print(1, "loading HTML for year %d @ %s" % (year, path))
+            with open(path) as f:
+                contents = "".join(f.readlines())
+        except Exception as e:
+            v_print(0, "warning: no readable cached HTML @ %s: %s" % (path, e))
+
+    if not contents:
+        v_print(1, "scraping from:", url)
+        resp = UR.urlopen(UR.Request(url))
+        if resp.code != 200:
+            raise Exception("Failed to fetch results for year: %d" % year)
+        contents = resp.read().decode('utf-8')
+
+        if FLAGS.cache:
+            with open(path, 'w') as f:
+                f.write(contents)
+                f.write("\n")
+            v_print(1, "saved HTML for year %d to: %s" % (year, path))
+
+    return ET.fromstring(contents)
 
 
 def main(args=sys.argv):
@@ -92,6 +113,9 @@ def main(args=sys.argv):
         "-f", "--regions-file", type=argparse.FileType('r'),
         nargs='?', const='-',
         help="read additional region to university mappings in the TSV format")
+    parser.add_argument(
+        "--cache", action='store_true',
+        help="save the HTML page(s) and avoid fetching for the cached ones")
     parser.add_argument("queries", metavar='QUERY', nargs='*')
     args = parser.parse_args(args[1:])
 
