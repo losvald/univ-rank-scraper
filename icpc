@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import re
 import sqlite3
 import sys
 import urllib.request as UR
@@ -81,6 +82,10 @@ def fetch(year):
             raise Exception("Failed to fetch results for year: %d" % year)
         contents = resp.read().decode('utf-8')
 
+        if FLAGS.fix:
+            # years 2013-2015 have unclosed <meta http-equiv=...> tag
+            contents = re.sub(r"(<meta http-[^>]*[^/])>", r"\1/>", contents)
+
         if FLAGS.cache:
             with open(path, 'w') as f:
                 f.write(contents)
@@ -116,6 +121,9 @@ def main(args=sys.argv):
     parser.add_argument(
         "--cache", action='store_true',
         help="save the HTML page(s) and avoid fetching for the cached ones")
+    parser.add_argument(
+        "--no-fix", dest='fix', action='store_false',
+        help="do not fix malformed HTML (e.g., unclosed tags)")
     parser.add_argument("queries", metavar='QUERY', nargs='*')
     args = parser.parse_args(args[1:])
 
