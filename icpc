@@ -86,6 +86,9 @@ def fetch(year):
             # years 2013-2015 have unclosed <meta http-equiv=...> tag
             contents = re.sub(r"(<meta http-[^>]*[^/])>", r"\1/>", contents)
 
+            # years 2011-2012 and 2008 that have <tr>s within <tbody> tag
+            contents = re.sub(r"</?tbody>", "", contents)
+
         if FLAGS.cache:
             with open(path, 'w') as f:
                 f.write(contents)
