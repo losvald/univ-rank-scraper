@@ -23,6 +23,8 @@ import xml.etree.ElementTree as ET
 
 from common import connect_db
 
+SUPPORTED_YEARS = list(range(2005, 2017))
+
 
 def query(s, db):
     for row in db.execute(s):
@@ -148,7 +150,7 @@ def main(args=sys.argv):
         "-c", "--clear", action='store_true',
         help="clears the previously scraped ICPC data")
     parser.add_argument(
-        "-y", "--year", type=int, nargs='+', default=[],
+        "-y", "--years", type=int, nargs='+', default=[],
         help="scrape for the specified years")
     parser.add_argument(
         "-r", "--regions", action='store_true',
@@ -165,6 +167,8 @@ def main(args=sys.argv):
         help="do not fix malformed HTML (e.g., unclosed tags)")
     parser.add_argument("queries", metavar='QUERY', nargs='*')
     args = parser.parse_args(args[1:])
+    if -1 in args.years:
+        args.years = SUPPORTED_YEARS
 
     global FLAGS
     FLAGS = args
@@ -186,7 +190,7 @@ def main(args=sys.argv):
             db.execute("DELETE FROM rankings WHERE contest='icpc'")
             db.execute("DELETE FROM icpc_geo")
 
-        for year in FLAGS.year:
+        for year in FLAGS.years:
             tree = fetch(year)
             for scrape in scrape_fns:
                 try:
