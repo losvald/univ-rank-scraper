@@ -36,8 +36,11 @@ def scrape_ranking(tree, year, db):
         for tbl in tree.findall(
             ".//{http://www.w3.org/1999/xhtml}table[@id='%s']/*" % tbl_name
         ):
-            row = [tr.text for tr in tbl.getchildren() if tr.text is not None]
-            if row:
+            row = [
+                tr.text.replace("\n", "").strip() or None
+                for tr in tbl.getchildren() if tr.text is not None
+            ]
+            if row and row[0]:
                 pos += 1
                 v_print(2, "parsed row#%d: %s" % (pos, tuple(row)))
                 while len(row) > 4:
@@ -88,6 +91,39 @@ def fetch(year):
 
             # years 2011-2012 and 2008 that have <tr>s within <tbody> tag
             contents = re.sub(r"</?tbody>", "", contents)
+
+            # years <= 2010 use entities "&<symbol>;", not Unicode characters
+            ent_to_uni = {
+                "aacute": "á",
+                "atilde": "ã",
+                "eacute": "é",
+                "egrave": "è",
+                "nbsp": " ",
+                "oacute": "ó",
+            }
+            contents = re.sub(r'(.dtd")', r"\1 [" + "".join(
+                "\n<!ENTITY %s '%s'>" % (ent, uni)
+                for ent, uni in ent_to_uni.items()
+            ) + "\n]", contents)
+
+            # years <= 2010 also don't have id attribute in <table>
+            if year <= 2010:
+                contents = re.sub(
+                    r'(<table)', r'\1 id="rankTable"', contents, count=1)
+
+                region_tbl_ord = 3
+                for n in range(region_tbl_ord):
+                    contents = re.sub(
+                        r'(<table)(?! n=)', r'\1 n="%d"' % n, contents,
+                        count=1
+                    )
+                contents = contents.replace(
+                    '<table n="2"', '<table id="regionTable"'
+                )
+
+            # year 2006 has extra <div> in table entry for DePaul University
+            if year == 2006:
+                contents = re.sub("<div><p>(.*)</p></div>", r"\1", contents)
 
         if FLAGS.cache:
             with open(path, 'w') as f:
